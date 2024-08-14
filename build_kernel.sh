@@ -64,8 +64,11 @@ function build_clean() {
 }
 
 function pack_zip() {
+    new_sha1=$(${PACK_DIR}/tools/magiskboot sha1 ${OUT_DIR}/arch/arm64/boot/Image)
+    sed -i "s/^SHA1_STOCK=.*/SHA1_STOCK=\"${new_sha1}\"/" ${PACK_DIR}/anykernel.sh
+
     local cur_date = $(date +"%Y%m%d%H%M%S")
-    local zip_name = $(grep 'CONFIG_LOCALVERSION=' ./arch/arm64/configs/marble_defconfig | cut -d '"' -f 2 | sed 's/^-//')-NoKSU_$(cur_date).zip
+    local zip_name = $(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/$1_defconfig | cut -d '"' -f 2 | sed 's/^-//')-NoKSU_$(cur_date).zip
 
     7z a -t7z -mx=9 ${PACK_DIR}/Image.7z ${OUT_DIR}/arch/arm64/boot/Image
     7z a -tzip -mx=9 $zip_name $PACK_DIR -xr'!build_kernel.sh'
@@ -77,16 +80,26 @@ case $1 in
 "--build")
     build "$2"
     pack_zip "$2"
+
+    exit 0
+    ;;
+"--pack")
+    pack_zip "$2"
+
+    exit 0
     ;;
 "--clean")
     build_clean
+
     exit 0
     ;;
 "-h")
     echo "Usage:"
     echo "build-kernel.sh --build your_device"
     echo "build-kernel.sh --build marble"
+    echo "build-kernel.sh --pack"
     echo "build-kernel.sh --clean"
+
     exit 1
     ;;
 esac

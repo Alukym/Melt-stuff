@@ -67,20 +67,6 @@ is_mounted() { mount | grep -q " $1 "; }
 
 sha1() { ${bin}/magiskboot sha1 "$1"; }
 
-apply_patch() {
-	# apply_patch <src_path> <src_sha1> <dst_sha1> <bs_patch>
-	local src_path=$1
-	local src_sha1=$2
-	local dst_sha1=$3
-	local bs_patch=$4
-	local file_sha1
-
-	file_sha1=$(sha1 $src_path)
-	[ "$file_sha1" == "$dst_sha1" ] && return 0
-	[ "$file_sha1" == "$src_sha1" ] && ${bin}/bspatch "$src_path" "$src_path" "$bs_patch"
-	[ "$(sha1 $src_path)" == "$dst_sha1" ] || abort "! Failed to patch $src_path!"
-}
-
 get_keycheck_result() {
 	# Default behavior:
 	# - press Vol+: return true (0)
@@ -196,31 +182,6 @@ umount /vendor_dlkm
 
 is_miui_rom=false
 [ -f /system/framework/MiuiBooster.jar ] && is_miui_rom=true
-
-# KernelSU
-[ -f ${split_img}/ramdisk.cpio ] || abort "! Cannot found ramdisk.cpio!"
-${bin}/magiskboot cpio ${split_img}/ramdisk.cpio test
-magisk_patched=$?
-if [ -f ${ramdisk}/kernelsu.ko ]; then
-	ui_print "- KernelSU LKM detected!"
-	ui_print "- Then you can only install Melt Kernel without KernelSU support!"
-	if [ $((magisk_patched & 3)) -eq 1 ]; then
-		ui_print "- Magisk detected!"
-		ui_print "- Oh brother, it's crazy!"
-		sleep 3
-	fi
-elif keycode_select "Choose whether to install KernelSU support."; then
-	if [ $((magisk_patched & 3)) -eq 1 ]; then
-		ui_print "- Magisk detected!"
-		ui_print "- We don't recommend using Magisk and KernelSU at the same time!"
-		ui_print "- If any problems occur, it's your own responsibility!"
-		ui_print " "
-		sleep 3
-	fi
-	ui_print "- Patching Kernel image..."
-	apply_patch ${home}/Image "$SHA1_STOCK" "$SHA1_KSU" ${home}/bs_patches/ksu.p
-fi
-export magisk_patched
 
 # Fix unable to mount image as read-write in recovery
 $BOOTMODE || setenforce 0
