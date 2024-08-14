@@ -24,7 +24,7 @@ end_count_time() {
     s=${time%${ns}}
 
     if [[ $s -ge 10800 ]]; then
-        echo -e "\e[1;34m -> $1 - Time elapsed: less than 100 ms \e[0m"
+        echo -e "\e[1;34m-> $1 - Time elapsed: less than 100 ms \e[0m"
     elif [[ $s -ge 3600 ]]; then
         ms=$(($ns / 1000000))
         h=$(($s / 3600))
@@ -33,18 +33,18 @@ end_count_time() {
             min=$(($s / 60))
             s=$(($s % 60))
         fi
-        echo -e "\e[1;34m -> $1 <- Time elapsed: $h hr(s) $min min(s) $s sec(s) $ms ms \e[0m"
+        echo -e "\e[1;34m-> $1 <- Time elapsed: $h hr(s) $min min(s) $s sec(s) $ms ms \e[0m"
     elif [[ $s -ge 60 ]]; then
         ms=$(($ns / 1000000))
         min=$(($s / 60))
         s=$(($s % 60))
-        echo -e "\e[1;34m -> $1 <- Time elapsed: $min min(s) $s sec(s) $ms ms \e[0m"
+        echo -e "\e[1;34m-> $1 <- Time elapsed: $min min(s) $s sec(s) $ms ms \e[0m"
     elif [[ -n $s ]]; then
         ms=$(($ns / 1000000))
-        echo -e "\e[1;34m -> $1 <- Time elapsed: $s sec(s) $ms ms \e[0m"
+        echo -e "\e[1;34m-> $1 <- Time elapsed: $s sec(s) $ms ms \e[0m"
     else
         ms=$(($ns / 1000000))
-        echo -e "\e[1;34m -> $1 <- Time elapsed: $ms ms \e[0m"
+        echo -e "\e[1;34m-> $1 <- Time elapsed: $ms ms \e[0m"
     fi
 }
 
@@ -64,16 +64,37 @@ function build_clean() {
 }
 
 function pack_zip() {
-    new_sha1=$(${PACK_DIR}/tools/magiskboot sha1 ${OUT_DIR}/arch/arm64/boot/Image)
+    start_count_time
+
+    # remove old files
+    rm Melt-*.zip
+
+    # update sha1 in anykernel.sh
+    new_sha1=$(sha1sum "${OUT_DIR}/arch/arm64/boot/Image" | awk '{ print $1 }')
     sed -i "s/^SHA1_STOCK=.*/SHA1_STOCK=\"${new_sha1}\"/" ${PACK_DIR}/anykernel.sh
 
-    local cur_date = $(date +"%Y%m%d%H%M%S")
-    local zip_name = $(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/$1_defconfig | cut -d '"' -f 2 | sed 's/^-//')-NoKSU_$(cur_date).zip
+    local cur_date="$(date +"%Y%m%d%H%M%S")"
+    local zip_name="$(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/$1_defconfig | cut -d '"' -f 2 | sed 's/^-//')-NoKSU_${cur_date}.zip"
 
+    # compressing
     7z a -t7z -mx=9 ${PACK_DIR}/Image.7z ${OUT_DIR}/arch/arm64/boot/Image
-    7z a -tzip -mx=9 $zip_name $PACK_DIR -xr'!build_kernel.sh'
+    7z a -tzip -mx=9 $zip_name $PACK_DIR/* -xr'!build_kernel.sh' -xr'!.git'
+
+    end_count_time "Pack"
+    
+    echo "====================================================="
+    echo -e "Output archive: \e[1;34m${zip_name}\e[0m"
+    echo "====================================================="
 
     #cp $zip_name /mnt/g/$zip_name
+}
+
+function show_usage() {
+    echo "Usage:"
+    echo "build_kernel.sh --build your_device"
+    echo "build_kernel.sh --build marble"
+    echo "build_kernel.sh --pack"
+    echo "build_kernel.sh --clean"
 }
 
 case $1 in
@@ -84,7 +105,7 @@ case $1 in
     exit 0
     ;;
 "--pack")
-    pack_zip "$2"
+    pack_zip "marble"
 
     exit 0
     ;;
@@ -93,13 +114,7 @@ case $1 in
 
     exit 0
     ;;
-"-h")
-    echo "Usage:"
-    echo "build_kernel.sh --build your_device"
-    echo "build_kernel.sh --build marble"
-    echo "build_kernel.sh --pack"
-    echo "build_kernel.sh --clean"
-
-    exit 1
-    ;;
 esac
+
+show_usage
+exit 1
