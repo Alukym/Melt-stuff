@@ -1,12 +1,18 @@
 #!/bin/bash
 
+REPO="https://github.com/Alukym/Melt-stuff.git"
+
 if [ ! -d "build_scripts" ]; then
     echo "Repo not found, cloning..."
-    git clone https://github.com/Alukym/Melt-stuff.git build_scripts
+    git clone $REPO build_scripts
 else
     echo "Checking for updates..."
 
     cd build_scripts
+
+    # clean changes
+    git clean -fd
+    git restore .
 
     git fetch origin
     branch=$(git rev-parse --abbrev-ref HEAD)
@@ -23,8 +29,6 @@ else
     else
         echo "Repo is up-to-date!"
     fi
-
-    git restore .
 
     cd ..
 fi
