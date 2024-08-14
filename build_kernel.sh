@@ -95,10 +95,10 @@ case $1 in
     ;;
 "-h")
     echo "Usage:"
-    echo "build-kernel.sh --build your_device"
-    echo "build-kernel.sh --build marble"
-    echo "build-kernel.sh --pack"
-    echo "build-kernel.sh --clean"
+    echo "build_kernel.sh --build your_device"
+    echo "build_kernel.sh --build marble"
+    echo "build_kernel.sh --pack"
+    echo "build_kernel.sh --clean"
 
     exit 1
     ;;
