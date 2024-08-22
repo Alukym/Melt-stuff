@@ -42,4 +42,4 @@ fi
 echo ""
 
 chmod -R 777 build_scripts
-./build_scripts/build_kernel.sh "$1" "$2"
+./build_scripts/build_kernel.sh "$1" "$2" "$3"
