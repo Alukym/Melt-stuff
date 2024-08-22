@@ -12,18 +12,19 @@ LLVM_IAS=1 \
 O=$OUT_DIR"
 
 function build() {
+    # remove old ksu config
+    sed -i '/^CONFIG_KSU=/d' "./arch/arm64/configs/$2_defconfig"
     if [ "$1" == "--ksu" ]; then
-        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+        echo "CONFIG_KSU=y" >> "./arch/arm64/configs/$2_defconfig"
     fi
+
 
     make ${MAKE_ARGS} mrproper | tee ${OUT_DIR}/kernel.log
     make ${MAKE_ARGS} "$2_defconfig" | tee ${OUT_DIR}/kernel.log
     make ${MAKE_ARGS} -j$(nproc --all) | tee ${OUT_DIR}/kernel.log
 
-    # cleanup ksu changes
-    if [ "$1" == "--ksu" ]; then
-        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s - --cleanup
-    fi
+    # remove again
+    sed -i '/^CONFIG_KSU=/d' "./arch/arm64/configs/$2_defconfig"
 }
 
 function build_clean() {
@@ -82,6 +83,9 @@ case $1 in
 "b")
     if [ -z "$3" ]; then
         set -- "$1" "$2" "marble"
+    fi
+    if [ "$2" != "--ksu" ]; then
+        set -- "$1" "" "$3"
     fi
 
     build "$2" "$3"
