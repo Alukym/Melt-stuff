@@ -71,12 +71,12 @@ function pack_zip() {
 
 function show_usage() {
     echo "Usage:"
-    echo "$0   b   |      <--ksu>       |    your_device"
-    echo "   build | enable ksu support | marble for default"
-    echo "$0   p                        |    your_device"
-    echo "   pack to flashable zip      | marble for default"
-    echo "$0   c"
-    echo "   clean"
+    echo "build.sh   b   |      <--ksu>       |    your_device"
+    echo "         build | enable ksu support | marble for default"
+    echo "build.sh   p                        |    your_device"
+    echo "         pack to flashable zip      | marble for default"
+    echo "build.sh   c"
+    echo "         clean"
 }
 
 case $1 in
