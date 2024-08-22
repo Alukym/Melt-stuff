@@ -95,7 +95,7 @@ function pack_zip() {
     popd >/dev/null
 
     echo "Compressing zip for flashing"
-    7z a -tzip -mx=9 $zip_name $PACK_DIR/* -xr'!build_kernel.sh' -xr'!.git' -bso0
+    7z a -tzip -mx=9 $zip_name $PACK_DIR/* -xr'!build.sh' -xr'!build_kernel.sh' -xr'!.git' -bso0
     echo "Done!"
 
     #end_count_time "Pack"

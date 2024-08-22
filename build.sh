@@ -26,6 +26,12 @@ else
     if [ "$local_commit" != "$remote_commit" ]; then
         echo "Repo is not up-to-date. Pulling latest changes..."
         git pull
+
+        cd ..
+        cp build_scripts/build.sh .
+        
+        echo "Restarting script with the updated version..."
+        exec ./build.sh "$1" "$2"
     else
         echo "Repo is up-to-date!"
     fi
