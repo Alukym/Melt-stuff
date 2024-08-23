@@ -14,7 +14,7 @@ O=$OUT_DIR"
 #                  $1       $2
 # function build(ksu_arg, device)
 function build() {
-    if [ -e "./arch/arm64/configs/$2_defconfig" ]; then
+    if [ ! -e "./arch/arm64/configs/$2_defconfig" ]; then
         echo "Error: $2_defconfig does not exist!"
         exit 1
     fi
