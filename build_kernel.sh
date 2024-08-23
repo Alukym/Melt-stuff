@@ -14,6 +14,11 @@ O=$OUT_DIR"
 #                  $1       $2
 # function build(ksu_arg, device)
 function build() {
+    if [ -e "./arch/arm64/configs/$2_defconfig" ]; then
+        echo "Error: $2_defconfig does not exist!"
+        exit 1
+    fi
+
     # remove old ksu config
     sed -i '/^CONFIG_KSU=/d' "./arch/arm64/configs/$2_defconfig"
     if [ "$1" == "--ksu" ]; then
@@ -39,7 +44,7 @@ function build_clean() {
 function pack_zip() {
     # remove old files
     rm Melt-*.zip 2>/dev/null
-    rm /mnt/g/Melt-*.zip 2>/dev/null
+    #rm /mnt/g/Melt-*.zip 2>/dev/null
 
     # update sha1 in anykernel.sh
     new_sha1=$(sha1sum "${OUT_DIR}/arch/arm64/boot/Image" | awk '{ print $1 }')
@@ -83,8 +88,6 @@ function show_usage() {
     echo "Usage:"
     echo "build.sh   b   |      <--ksu>       |    your_device"
     echo "         build | enable ksu support | marble for default"
-    echo "build.sh   p                        |    your_device"
-    echo "         pack to flashable zip      | marble for default"
     echo "build.sh   c"
     echo "         clean"
 }
@@ -99,16 +102,7 @@ case $1 in
     fi
 
     build "$2" "$3"
-    pack_zip "$3"
-
-    exit 0
-    ;;
-"p")
-    if [ -z "$2" ]; then
-        set -- "$1" "marble"
-    fi
-
-    pack_zip $2
+    pack_zip "$2" "$3"
 
     exit 0
     ;;
