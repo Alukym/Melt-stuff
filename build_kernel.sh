@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# make sure current dir is '.', not './Melt-stuff'
+# make sure current dir is '.', not './build_scripts'
 PACK_DIR=$(dirname "$0")
 cd "${PACK_DIR}/.."
 
@@ -11,6 +11,8 @@ LLVM=1 \
 LLVM_IAS=1 \
 O=$OUT_DIR"
 
+#                  $1       $2
+# function build(ksu_arg, device)
 function build() {
     # remove old ksu config
     sed -i '/^CONFIG_KSU=/d' "./arch/arm64/configs/$2_defconfig"
@@ -32,6 +34,8 @@ function build_clean() {
     rm -rf $OUT_DIR
 }
 
+#                     $1       $2
+# function pack_zip(ksu_arg, device)
 function pack_zip() {
     # remove old files
     rm Melt-*.zip 2>/dev/null
@@ -41,8 +45,14 @@ function pack_zip() {
     new_sha1=$(sha1sum "${OUT_DIR}/arch/arm64/boot/Image" | awk '{ print $1 }')
     sed -i "s/^SHA1_STOCK=.*/SHA1_STOCK=\"${new_sha1}\"/" ${PACK_DIR}/anykernel.sh
 
+    if [ "$1" == "--ksu" ]; then
+        ksu_type="KSU"
+    else
+        ksu_type="NoKSU"
+    fi
+
     local cur_date="$(date +"%Y%m%d%H%M%S")"
-    local zip_name="$(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/$1_defconfig | cut -d '"' -f 2 | sed 's/^-//')-NoKSU_${cur_date}.zip"
+    local zip_name="$(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/$2_defconfig | cut -d '"' -f 2 | sed 's/^-//')-${ksu_type}_${cur_date}.zip"
 
     # compressing
 
