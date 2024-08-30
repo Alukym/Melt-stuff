@@ -36,7 +36,7 @@ dump_boot # use split_boot to skip ramdisk unpack, e.g. for devices with init_bo
 
 ########## FLASH BOOT & VENDOR_DLKM START ##########
 
-SHA1_STOCK="5dea47ca9c57ebf649f79832e40dd86a1d47e952"
+SHA1_STOCK="null"
 
 KEYCODE_UP=42
 KEYCODE_DOWN=41
@@ -66,6 +66,20 @@ mkfs_erofs() {
 is_mounted() { mount | grep -q " $1 "; }
 
 sha1() { ${bin}/magiskboot sha1 "$1"; }
+
+apply_patch() {
+	# apply_patch <src_path> <src_sha1> <dst_sha1> <bs_patch>
+	local src_path=$1
+	local src_sha1=$2
+	local dst_sha1=$3
+	local bs_patch=$4
+	local file_sha1
+
+	file_sha1=$(sha1 $src_path)
+	[ "$file_sha1" == "$dst_sha1" ] && return 0
+	[ "$file_sha1" == "$src_sha1" ] && ${bin}/bspatch "$src_path" "$src_path" "$bs_patch"
+	[ "$(sha1 $src_path)" == "$dst_sha1" ] || abort "! Failed to patch $src_path!"
+}
 
 get_keycheck_result() {
 	# Default behavior:
@@ -155,6 +169,39 @@ else
 	is_hyperos_fw=false
 fi
 
+# Check snapshot status
+# Technical details: https://blog.xzr.moe/archives/30/
+${bin}/snapshotupdater_static dump &>/dev/null
+rc=$?
+if [ "$rc" != 0 ]; then
+	ui_print " "
+	ui_print "Cannot get snapshot status via snapshotupdater_static! rc=$rc."
+	if $BOOTMODE; then
+		ui_print "If you are installing the kernel in an app, try using another app."
+		ui_print "Recommend KernelFlasher:"
+		ui_print "  https://github.com/capntrips/KernelFlasher/releases"
+	else
+		ui_print "Please try to reboot to system once before installing!"
+	fi
+	abort "Aborting..."
+fi
+snapshot_status=$(${bin}/snapshotupdater_static dump 2>/dev/null | grep '^Update state:' | awk '{print $3}')
+ui_print "Current snapshot state: $snapshot_status"
+if [ "$snapshot_status" != "none" ]; then
+	ui_print " "
+	ui_print "Seems like you just installed a rom update."
+	if [ "$snapshot_status" == "merging" ]; then
+		ui_print "Please use the rom for a while to wait for"
+		ui_print "the system to complete the snapshot merge."
+		ui_print "It's also possible to use the \"Merge Snapshots\" feature"
+		ui_print "in TWRP's Advanced menu to instantly merge snapshots."
+	else
+		ui_print "Please try to reboot to system once before installing!"
+	fi
+	abort "Aborting..."
+fi
+unset rc snapshot_status
+
 [ -f ${home}/Image.7z ] || abort "! Cannot found ${home}/Image.7z!"
 ui_print " "
 ui_print "- Unpacking kernel image..."
@@ -237,6 +284,17 @@ if keycode_select \
     "This will sometimes make it difficult to charge" \
     "the device to 100%."; then
 	qti_battery_charger_mod_options="${qti_battery_charger_mod_options} report_real_capacity=y"
+fi
+
+disable_damon_reclaim=false
+if ! keycode_select \
+    "Enable DAMON-based Reclamation?" \
+    " " \
+    "Note:" \
+    "DAMON-based Reclamation helps save memory usage by" \
+    "consuming approximately <= 5% of performance." \
+    "Disabling it might save a little battery."; then
+	disable_damon_reclaim=true
 fi
 
 skip_option_fix_battery_usage=false
@@ -458,11 +516,17 @@ rm ${vendor_boot_modules_dir}/*
 cp ${home}/_vendor_boot_modules/* ${vendor_boot_modules_dir}/
 set_perm 0 0 0644 ${vendor_boot_modules_dir}/*
 
+if ${disable_damon_reclaim}; then
+	patch_cmdline "damon_reclaim.enabled" "damon_reclaim.enabled=N"
+else
+	patch_cmdline "damon_reclaim.enabled" ""
+fi
+
 write_boot # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 
 ########## FLASH VENDOR_BOOT END ##########
 
-unset is_hyperos_fw is_miui_rom
+unset is_hyperos_fw is_miui_rom disable_damon_reclaim
 
 # Patch vbmeta
 ui_print " "
