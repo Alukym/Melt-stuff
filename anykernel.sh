@@ -67,20 +67,6 @@ is_mounted() { mount | grep -q " $1 "; }
 
 sha1() { ${bin}/magiskboot sha1 "$1"; }
 
-apply_patch() {
-	# apply_patch <src_path> <src_sha1> <dst_sha1> <bs_patch>
-	local src_path=$1
-	local src_sha1=$2
-	local dst_sha1=$3
-	local bs_patch=$4
-	local file_sha1
-
-	file_sha1=$(sha1 $src_path)
-	[ "$file_sha1" == "$dst_sha1" ] && return 0
-	[ "$file_sha1" == "$src_sha1" ] && ${bin}/bspatch "$src_path" "$src_path" "$bs_patch"
-	[ "$(sha1 $src_path)" == "$dst_sha1" ] || abort "! Failed to patch $src_path!"
-}
-
 get_keycheck_result() {
 	# Default behavior:
 	# - press Vol+: return true (0)
