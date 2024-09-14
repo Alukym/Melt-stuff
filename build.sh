@@ -23,7 +23,7 @@ clone_repo() {
 }
 
 update_repo() {
-    info "Pulling latest changes..."
+    info "Pulling latest changes for build scripts..."
     cd "$BUILD_SCRIPT_DIR"
 
     git clean -fd > /dev/null
@@ -39,7 +39,7 @@ update_repo() {
     info "Remote: $remote_commit"
 
     if [ "$local_commit" != "$remote_commit" ]; then
-        warn "Repo is not up-to-date. Pulling latest changes..."
+        warn "Repo is not up-to-date. Updating..."
         git pull > /dev/null || err "Failed to pull repo"
 
         cd ..
