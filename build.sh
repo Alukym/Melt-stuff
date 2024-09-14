@@ -1,8 +1,7 @@
 #!/bin/bash
 
 REPO="git@github.com:Alukym/Melt-stuff.git"
-DIR="build_scripts"
-BUILD_SCRIPT="build_kernel.sh"
+BUILD_SCRIPT_DIR="build_scripts"
 
 info() {
     echo -e "\e[32minfo: $1\e[0m"
@@ -10,25 +9,28 @@ info() {
 
 clone_repo() {
     info "Repo not found, cloning..."
-    git clone "$REPO" "$DIR"
+    git clone "$REPO" "$BUILD_SCRIPT_DIR"
 }
 
 update_repo() {
     info "Pulling latest changes..."
-    cd "$DIR" || exit 1
+    cd "$BUILD_SCRIPT_DIR"
 
     git clean -fd > /dev/null
     git restore . > /dev/null
 
     git pull > /dev/null
 
-    cd .. || exit 1
+    cd ..
+    cp build_scripts/build.sh .
+    info "Restarting script with the updated one..."
+    exec ./build.sh "$1" "$2" "$3" "--skip_update"
 }
 
 # main
 if [ ! -d "$DIR" ]; then
     clone_repo
-else
+elif [ $4 != "--skip_update" ]
     update_repo
 fi
 
