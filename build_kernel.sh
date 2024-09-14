@@ -67,7 +67,7 @@ pack_zip() {
     local ksu_type="NoKSU"
     [ "$ksu_arg" == "--ksu" ] && ksu_type="KSU"
 
-    local cur_date==$(date +"%Y%m%d%H%M%S")
+    local cur_date=$(date +"%Y%m%d%H%M%S")
     local zip_name="$(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/${device}_defconfig | cut -d '"' -f 2 | sed 's/^-//')-${ksu_type}_${cur_date}.zip"
 
     pushd "${OUT_DIR}/arch/arm64/boot/" > /dev/null
