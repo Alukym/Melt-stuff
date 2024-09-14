@@ -24,13 +24,13 @@ update_repo() {
     cd ..
     cp build_scripts/build.sh .
     info "Restarting script with the updated one..."
-    exec ./build.sh "$1" "$2" "$3" "--skip_update"
+    exec ./build.sh "$1" "$2" "$3"
 }
 
 # main
 if [ ! -d "$BUILD_SCRIPT_DIR" ]; then
     clone_repo
-elif [ $4 != "--skip_update" ]; then
+else
     update_repo
 fi
 
