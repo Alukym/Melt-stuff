@@ -28,7 +28,7 @@ update_repo() {
 }
 
 # main
-if [ ! -d "$DIR" ]; then
+if [ ! -d "$BUILD_SCRIPT_DIR" ]; then
     clone_repo
 elif [ $4 != "--skip_update" ]; then
     update_repo
@@ -37,5 +37,5 @@ fi
 echo ""
 
 # Ensure proper permissions
-chmod -R 777 "$DIR"
-"./$DIR/$BUILD_SCRIPT" "$1" "$2" "$3"
+chmod -R 777 "$BUILD_SCRIPT_DIR"
+"./$BUILD_SCRIPT_DIR/build_kernel.sh" "$1" "$2" "$3"
