@@ -3,6 +3,9 @@
 REPO="git@github.com:Alukym/Melt-stuff.git"
 BUILD_SCRIPT_DIR="build_scripts"
 
+# Store script arguments
+SCRIPT_ARGS=("$@")
+
 # Logging functions
 info() {
     echo -e "\e[32minfo\e[0m: $1"
@@ -29,7 +32,8 @@ update_repo() {
     git clean -fd > /dev/null
     git restore . > /dev/null
 
-    git fetch origin > /dev/null || err "Failed to fetch repo"
+    # this command outputs in stderr so we use 2>&1
+    git fetch origin > /dev/null 2>&1 || err "Failed to fetch repo"
     branch=$(git rev-parse --abbrev-ref HEAD)
 
     local_commit=$(git rev-parse "$branch")
@@ -44,9 +48,9 @@ update_repo() {
 
         cd ..
         cp $BUILD_SCRIPT_DIR/build.sh .
-        
+
         warn "Restarting script with the updated version..."
-        exec ./build.sh "$1" "$2" "$3"
+        exec ./build.sh "${SCRIPT_ARGS[@]}"
     else
         info "Build scripts are up-to-date!"
         cd ..
@@ -65,4 +69,4 @@ echo ""
 # Ensure proper permissions
 chmod -R 777 "$BUILD_SCRIPT_DIR"
 
-exec "./$BUILD_SCRIPT_DIR/build_kernel.sh" "$1" "$2" "$3"
+exec "./$BUILD_SCRIPT_DIR/build_kernel.sh" "${SCRIPT_ARGS[@]}"
