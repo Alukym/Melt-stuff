@@ -18,7 +18,7 @@ err() {
 }
 
 clone_repo() {
-    info "Repo not found, cloning..."
+    info "Build scripts are not found, cloning..."
     git clone "$REPO" "$BUILD_SCRIPT_DIR" > /dev/null || err "Failed to clone repo"
 }
 
@@ -39,7 +39,7 @@ update_repo() {
     info "Remote: $remote_commit"
 
     if [ "$local_commit" != "$remote_commit" ]; then
-        warn "Repo is not up-to-date. Updating..."
+        warn "Build scripts are not up-to-date. Updating..."
         git pull > /dev/null || err "Failed to pull repo"
 
         cd ..
@@ -48,7 +48,7 @@ update_repo() {
         warn "Restarting script with the updated version..."
         exec ./build.sh "$1" "$2" "$3"
     else
-        info "Repo is up-to-date!"
+        info "Build scripts are up-to-date!"
         cd ..
     fi
 }
