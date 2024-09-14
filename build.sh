@@ -3,22 +3,23 @@
 REPO="git@github.com:Alukym/Melt-stuff.git"
 BUILD_SCRIPT_DIR="build_scripts"
 
-warn() {
-    echo -e "\e[33mwarn: $1\e[0m"
+# Logging functions
+info() {
+    echo -e "\e[32minfo\e[0m: $1"
 }
 
-info() {
-    echo -e "\e[32minfo: $1\e[0m"
+warn() {
+    echo -e "\e[33mwarn\e[0m: $1"
 }
 
 err() {
-    echo -e "\e[31merr : $1\e[0m"
+    echo -e "\e[31merr\e[0m : $1"
     exit 1
 }
 
 clone_repo() {
     info "Repo not found, cloning..."
-    git clone "$REPO" "$BUILD_SCRIPT_DIR" | err "Failed to clone repo"
+    git clone "$REPO" "$BUILD_SCRIPT_DIR" > /dev/null || err "Failed to clone repo"
 }
 
 update_repo() {
@@ -28,7 +29,7 @@ update_repo() {
     git clean -fd > /dev/null
     git restore . > /dev/null
 
-    git fetch origin > /dev/null | err "Failed to fetch repo"
+    git fetch origin > /dev/null || err "Failed to fetch repo"
     branch=$(git rev-parse --abbrev-ref HEAD)
 
     local_commit=$(git rev-parse "$branch")
@@ -39,10 +40,10 @@ update_repo() {
 
     if [ "$local_commit" != "$remote_commit" ]; then
         warn "Repo is not up-to-date. Pulling latest changes..."
-        git pull > /dev/null | err "Failed to pull repo"
+        git pull > /dev/null || err "Failed to pull repo"
 
         cd ..
-        cp build_scripts/build.sh .
+        cp $BUILD_SCRIPT_DIR/build.sh .
         
         warn "Restarting script with the updated version..."
         exec ./build.sh "$1" "$2" "$3"

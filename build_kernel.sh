@@ -9,16 +9,15 @@ MAKE_ARGS="ARCH=arm64 LLVM=1 LLVM_IAS=1 O=$OUT_DIR"
 
 # Logging functions
 info() {
-    echo -e "\e[32minfo: $1\e[0m"
+    echo -e "\e[32minfo\e[0m: $1"
 }
 
-# Unused for currently
 warn() {
-    echo -e "\e[33mwarn: $1\e[0m"
+    echo -e "\e[33mwarn\e[0m: $1"
 }
 
 err() {
-    echo -e "\e[31merr : $1\e[0m"
+    echo -e "\e[31merr\e[0m : $1"
     exit 1
 }
 
