@@ -30,7 +30,7 @@ update_repo() {
 # main
 if [ ! -d "$DIR" ]; then
     clone_repo
-elif [ $4 != "--skip_update" ]
+elif [ $4 != "--skip_update" ]; then
     update_repo
 fi
 
