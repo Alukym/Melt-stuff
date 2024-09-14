@@ -67,13 +67,12 @@ pack_zip() {
     local ksu_type="NoKSU"
     [ "$ksu_arg" == "--ksu" ] && ksu_type="KSU"
 
-    local cur_date
-    cur_date=$(date +"%Y%m%d%H%M%S") || err "Failed to get current date"
+    local cur_date==$(date +"%Y%m%d%H%M%S")
     local zip_name="$(grep 'CONFIG_LOCALVERSION=' arch/arm64/configs/${device}_defconfig | cut -d '"' -f 2 | sed 's/^-//')-${ksu_type}_${cur_date}.zip"
 
     pushd "${OUT_DIR}/arch/arm64/boot/" > /dev/null
     info "Compressing kernel Image..."
-    7z a -t7z -mx=9 "../../../../${PACK_DIR}/Image.7z" Image -bso0 || err "Failed to compress kernel image"
+    7z a -t7z -mx=9 "${PACK_DIR}/Image.7z" Image -bso0 || err "Failed to compress kernel image"
     info "Done!"
     popd > /dev/null || err "Failed to return to previous directory"
 
