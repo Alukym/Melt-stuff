@@ -17,10 +17,10 @@ update_repo() {
     info "Pulling latest changes..."
     cd "$DIR" || exit 1
 
-    # git clean -fd
-    # git restore .
+    git clean -fd > /dev/null
+    git restore . > /dev/null
 
-    git pull
+    git pull > /dev/null
 
     cd .. || exit 1
 }
