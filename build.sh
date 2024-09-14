@@ -49,6 +49,7 @@ update_repo() {
         exec ./build.sh "$1" "$2" "$3"
     else
         info "Repo is up-to-date!"
+        cd ..
     fi
 }
 
