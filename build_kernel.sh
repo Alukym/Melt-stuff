@@ -45,6 +45,8 @@ build_kernel() {
     make $MAKE_ARGS -j$(nproc --all) > /dev/null | tee -a ${OUT_DIR}/kernel.log || err "Kernel build failed. Check ${OUT_DIR}/kernel.log"
 
     sed -i '/^CONFIG_KSU=/d' "$defconfig" || err "Failed to clean up KSU config in ${device}_defconfig"
+
+    info "Done!"
 }
 
 build_clean() {
