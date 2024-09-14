@@ -1,45 +1,35 @@
 #!/bin/bash
 
-REPO="https://github.com/Alukym/Melt-stuff.git"
+REPO="git@github.com:Alukym/Melt-stuff.git"
+DIR="build_scripts"
+BUILD_SCRIPT="build_kernel.sh"
 
-if [ ! -d "build_scripts" ]; then
+clone_repo() {
     echo "Repo not found, cloning..."
-    git clone $REPO build_scripts
+    git clone "$REPO" "$DIR"
+}
+
+update_repo() {
+    echo "Pulling latest changes..."
+    cd "$DIR" || exit 1
+
+    # git clean -fd
+    # git restore .
+
+    git pull
+
+    cd .. || exit 1
+}
+
+# main
+if [ ! -d "$DIR" ]; then
+    clone_repo
 else
-    echo "Checking for updates..."
-
-    cd build_scripts
-
-    # clean changes
-    git clean -fd
-    git restore .
-
-    git fetch origin
-    branch=$(git rev-parse --abbrev-ref HEAD)
-
-    local_commit=$(git rev-parse "$branch")
-    remote_commit=$(git rev-parse "origin/$branch")
-
-    echo "Local : $local_commit"
-    echo "Remote: $remote_commit"
-
-    if [ "$local_commit" != "$remote_commit" ]; then
-        echo "Repo is not up-to-date. Pulling latest changes..."
-        git pull
-
-        cd ..
-        cp build_scripts/build.sh .
-        
-        echo "Restarting script with the updated version..."
-        exec ./build.sh "$1" "$2"
-    else
-        echo "Repo is up-to-date!"
-    fi
-
-    cd ..
+    update_repo
 fi
 
 echo ""
 
-chmod -R 777 build_scripts
-./build_scripts/build_kernel.sh "$1" "$2" "$3"
+# Ensure proper permissions
+chmod -R 777 "$DIR"
+"./$DIR/$BUILD_SCRIPT" "$1" "$2" "$3"
