@@ -2,7 +2,7 @@
 
 # Set initial directories to "./" , not "./build_scripts"
 PACK_DIR=$(dirname "$0")
-cd "${PACK_DIR}/.." || err "Failed to change directory to ${PACK_DIR}/.."
+cd "${PACK_DIR}/.."
 
 OUT_DIR=out
 MAKE_ARGS="ARCH=arm64 LLVM=1 LLVM_IAS=1 O=$OUT_DIR"
@@ -73,7 +73,7 @@ pack_zip() {
 
     pushd "${OUT_DIR}/arch/arm64/boot/" > /dev/null
     info "Compressing kernel Image..."
-    7z a -t7z -mx=9 "../../../../../${PACK_DIR}/Image.7z" Image -bso0 || err "Failed to compress kernel image"
+    7z a -t7z -mx=9 "../../../../${PACK_DIR}/Image.7z" Image -bso0 || err "Failed to compress kernel image"
     info "Done!"
     popd > /dev/null || err "Failed to return to previous directory"
 
