@@ -32,7 +32,7 @@ patch_vbmeta_flag=auto
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh
 
-dump_boot # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
+split_boot # skip ramdisk unpack
 
 ########## FLASH BOOT & VENDOR_DLKM START ##########
 
@@ -162,7 +162,7 @@ rc=$?
 if [ "$rc" != 0 ]; then
 	ui_print " "
 	ui_print "Cannot get snapshot status via snapshotupdater_static! rc=$rc."
-	if $BOOTMODE; then
+	if ${BOOTMODE}; then
 		ui_print "If you are installing the kernel in an app, try using another app."
 		ui_print "Recommend KernelFlasher:"
 		ui_print "  https://github.com/capntrips/KernelFlasher/releases"
@@ -188,6 +188,27 @@ if [ "$snapshot_status" != "none" ]; then
 fi
 unset rc snapshot_status
 
+# Check rom type
+is_miui_rom=false
+[ -f /system/framework/MiuiBooster.jar ] && is_miui_rom=true
+is_oss_kernel_rom=false
+[ -f /vendor/bin/sensor-notifier ] && is_oss_kernel_rom=true
+
+# Check if it's new OSS dtbo
+# https://github.com/cupid-development/android_kernel_xiaomi_sm8450-devicetrees/commit/f4dfb9210dc907b335441bfa78720773f679f841
+use_new_gt_driver=false
+m16t_touch_node=$(find /proc/device-tree/ | grep -E -m1 '/m16t-touch.*/compatible$') && m16t_touch_prop=$(cat "$m16t_touch_node") && {
+	test "$m16t_touch_prop" == "goodix,9916r-spi" || use_new_gt_driver=true
+}
+unset m16t_touch_node m16t_touch_prop
+
+# https://github.com/cupid-development/android_kernel_xiaomi_sm8450-devicetrees/commit/393374ee4d02edbc27f3b6b57b965a7fbe87d33b
+use_oss_ir_spi_driver=false
+ir_spi_node=$(find /proc/device-tree/ | grep -E -m1 '/ir-spi.*/compatible$') && ir_spi_prop=$(cat "$ir_spi_node") && {
+	test "$ir_spi_prop" == "ir-spi-led" && use_oss_ir_spi_driver=true
+}
+unset ir_spi_node ir_spi_prop
+
 [ -f ${home}/Image.7z ] || abort "! Cannot found ${home}/Image.7z!"
 ui_print " "
 ui_print "- Unpacking kernel image..."
@@ -207,21 +228,18 @@ do_backup_flag=false
 if [ ! -f /vendor_dlkm/lib/modules/vertmp ]; then
 	do_backup_flag=true
 fi
-do_fix_battery_usage=false
+is_fixed_qbc_driver=false
 if [ "$(sha1 /vendor_dlkm/lib/modules/qti_battery_charger.ko)" == "b5aa013e06e545df50030ec7b03216f41306f4d4" ]; then
-	do_fix_battery_usage=true
+	is_fixed_qbc_driver=true
 fi
 umount /vendor_dlkm
-
-is_miui_rom=false
-[ -f /system/framework/MiuiBooster.jar ] && is_miui_rom=true
 
 # Fix unable to mount image as read-write in recovery
 $BOOTMODE || setenforce 0
 
 ui_print " "
 ui_print "- Unpacking kernel modules..."
-if $is_hyperos_fw; then
+if ${is_hyperos_fw}; then
 	modules_pkg=${home}/_modules_hyperos.7z
 else
 	modules_pkg=${home}/_modules_miui.7z
@@ -234,16 +252,7 @@ unset modules_pkg
 vendor_dlkm_modules_options_file=${home}/_vendor_dlkm_modules/modules.options
 [ -f $vendor_dlkm_modules_options_file ] || touch $vendor_dlkm_modules_options_file
 
-# Clean up the residue of Melt
-if [ -n "$(grep '^cmdline=' ${split_img}/header | cut -d= -f2-)" ]; then
-	patch_cmdline "goodix_core.force_high_report_rate" ""
-	patch_cmdline "qti_battery_charger.report_real_capacity" ""
-	patch_cmdline "qti_battery_charger.fix_battery_usage" ""
-	patch_cmdline "qti_battery_charger_main.report_real_capacity" ""
-	patch_cmdline "qti_battery_charger_main.fix_battery_usage" ""
-fi
-
-# goodix_core.ko
+# goodix_core.ko / goodix_core_los.ko
 if keycode_select \
     "Always enable 360HZ touch sampling rate?" \
     " " \
@@ -252,11 +261,15 @@ if keycode_select \
     "use experience and increase power consumption." \
     "If you regret it, you can install this kernel again" \
     "and choose No at this step."; then
-	echo "options goodix_core force_high_report_rate=y" >> $vendor_dlkm_modules_options_file
+	if ${use_new_gt_driver}; then
+		echo "options goodix_core_los force_high_report_rate=y" >> $vendor_dlkm_modules_options_file
+	else
+		echo "options goodix_core force_high_report_rate=y" >> $vendor_dlkm_modules_options_file
+	fi
 fi
 
 # qti_battery_charger.ko / qti_battery_charger_main.ko
-if $is_hyperos_fw; then
+if ${is_hyperos_fw}; then
 	modname_qti_battery_charger=qti_battery_charger_main
 else
 	modname_qti_battery_charger=qti_battery_charger
@@ -272,22 +285,15 @@ if keycode_select \
 	qti_battery_charger_mod_options="${qti_battery_charger_mod_options} report_real_capacity=y"
 fi
 
-disable_damon_reclaim=false
-if ! keycode_select \
-    "Enable DAMON-based Reclamation?" \
-    " " \
-    "Note:" \
-    "DAMON-based Reclamation helps save memory usage by" \
-    "consuming approximately <= 5% of performance." \
-    "Disabling it might save a little battery."; then
-	disable_damon_reclaim=true
-fi
-
+do_fix_battery_usage=false
 skip_option_fix_battery_usage=false
-if $is_miui_rom || cat /system/build.prop | grep -qi 'aospa'; then
+if ${is_oss_kernel_rom} || ${is_fixed_qbc_driver}; then
+	do_fix_battery_usage=true
+	skip_option_fix_battery_usage=true
+elif ${is_miui_rom} || cat /system/build.prop | grep -qi 'aospa'; then
 	skip_option_fix_battery_usage=true
 fi
-if ! $do_fix_battery_usage && ! $skip_option_fix_battery_usage; then
+if ! ${skip_option_fix_battery_usage}; then
 	if keycode_select \
 	    "Fix battery usage issue with AOSP rom?" \
 	    " " \
@@ -298,17 +304,68 @@ if ! $do_fix_battery_usage && ! $skip_option_fix_battery_usage; then
 		do_fix_battery_usage=true
 	fi
 fi
-if $do_fix_battery_usage; then
+if ${do_fix_battery_usage}; then
 	qti_battery_charger_mod_options="${qti_battery_charger_mod_options} fix_battery_usage=y"
 fi
+unset do_fix_battery_usage skip_option_fix_battery_usage is_fixed_qbc_driver
 
 if [ -n "${qti_battery_charger_mod_options}" ]; then
 	qti_battery_charger_mod_options=$(echo "$qti_battery_charger_mod_options" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 	echo "options ${modname_qti_battery_charger} ${qti_battery_charger_mod_options}" >> $vendor_dlkm_modules_options_file
 fi
+unset modname_qti_battery_charger qti_battery_charger_mod_options
+
+# OSS msm_drm.ko
+if ${is_hyperos_fw}; then
+	use_oss_msm_drm=false
+	skip_option_oss_msm_drm=false
+
+	if ${is_oss_kernel_rom}; then
+		use_oss_msm_drm=true
+		skip_option_oss_msm_drm=true
+	fi
+	if ! ${skip_option_oss_msm_drm}; then
+		if keycode_select \
+		    "Using open source display drivers?" \
+		    " " \
+		    "Note:" \
+		    "Select No if you don't know what this means."; then
+			use_oss_msm_drm=true
+		fi
+	fi
+	if ${use_oss_msm_drm}; then
+		ui_print "- Replacing msm_drm.ko with OSS build..."
+		oss_msm_drm=${home}/_alt/OSS-msm_drm.ko
+		[ -f $oss_msm_drm ] || abort "! Cannot found ${oss_msm_drm}!"
+		cp $oss_msm_drm ${home}/_vendor_dlkm_modules/msm_drm.ko -f
+		unset oss_msm_drm
+	fi
+
+	unset use_oss_msm_drm skip_option_oss_msm_drm
+fi
+
+# OSS ir-spi.ko
+if ${is_hyperos_fw} && ${use_oss_ir_spi_driver}; then
+	ui_print "- Replacing ir-spi.ko with OSS build..."
+	oss_ir_spi=${home}/_alt/OSS-ir-spi.ko
+	[ -f $oss_ir_spi ] || abort "! Cannot found ${oss_ir_spi}!"
+	cp $oss_ir_spi ${home}/_vendor_dlkm_modules/ir-spi.ko -f
+	sed -i 's/Cir-spi\ /Cir-spi-led\ /g'       ${home}/_vendor_dlkm_modules/modules.alias
+	sed -i 's/Cir-spiC\*\ /Cir-spi-ledC\*\ /g' ${home}/_vendor_dlkm_modules/modules.alias
+	unset oss_ir_spi
+fi
+unset use_oss_ir_spi_driver
 
 # Alternative wired headset buttons mode
-if ! $is_miui_rom; then
+use_wired_btn_altmode=false
+skip_option_wired_btn_altmode=false
+if ${is_miui_rom}; then
+	skip_option_wired_btn_altmode=true
+elif ${is_oss_kernel_rom}; then
+	use_wired_btn_altmode=true
+	skip_option_wired_btn_altmode=true
+fi
+if ! ${skip_option_wired_btn_altmode}; then
 	if keycode_select \
 	    "Use alternative wired headset buttons mode?" \
 	    " " \
@@ -316,18 +373,31 @@ if ! $is_miui_rom; then
 	    "Select Yes if you find that the volume buttons on" \
 	    "your wired headset are not working properly." \
 	    "Select No if you are using MIUI/HyperOS rom."; then
-		echo "options machine_dlkm waipio_wired_btn_altmode=y" >> $vendor_dlkm_modules_options_file
+		use_wired_btn_altmode=true
 	fi
 fi
+if ${use_wired_btn_altmode}; then
+	echo "options machine_dlkm waipio_wired_btn_altmode=y" >> $vendor_dlkm_modules_options_file
+fi
+unset use_wired_btn_altmode skip_option_wired_btn_altmode
 
-unset modname_qti_battery_charger skip_option_fix_battery_usage vendor_dlkm_modules_options_file qti_battery_charger_mod_options
+unset vendor_dlkm_modules_options_file
 
 # Do not load millet related modules in AOSP rom
-if ! $is_miui_rom; then
+if ! ${is_miui_rom}; then
 	for module_name in millet_core millet_binder millet_hs millet_oem_cgroup millet_pkg millet_sig; do
 		echo "blocklist $module_name" >> ${home}/_vendor_dlkm_modules/modules.blocklist
 	done
 fi
+
+# Only load one of the two goodix touch screen drivers
+if ${use_new_gt_driver}; then
+	echo "blocklist goodix_core" >> ${home}/_vendor_dlkm_modules/modules.blocklist
+else
+	echo "blocklist goodix_core_los" >> ${home}/_vendor_dlkm_modules/modules.blocklist
+fi
+
+unset use_new_gt_driver
 
 ui_print " "
 if true; then  # I don't want to adjust the indentation of the code block below, so leave it as is.
@@ -338,10 +408,10 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 	vendor_dlkm_block_size=$(get_size /dev/block/mapper/vendor_dlkm${slot})
 
 	# Backup kernel and vendor_dlkm image
-	if $do_backup_flag; then
+	if ${do_backup_flag}; then
 		ui_print "- It looks like you are installing Melt Kernel for the first time."
 
-		keycode_select "Backup the current kernel?" && {
+		if keycode_select "Backup the current kernel?"; then
 			ui_print "- Backing up kernel, vendor_boot, and vendor_dlkm partition..."
 
 			backup_package=/sdcard/Melt-restore-kernel-$(file_getprop /system/build.prop ro.build.version.incremental)-$(date +"%Y%m%d-%H%M%S").zip
@@ -375,7 +445,7 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 			fi
 
 			unset backup_package
-		}
+		fi
 	fi
 
 	ui_print "- Unpacking /vendor_dlkm partition..."
@@ -385,7 +455,7 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 	extract_erofs ${home}/vendor_dlkm.img $extract_vendor_dlkm_dir || vendor_dlkm_is_ext4=true
 	sync
 
-	if $vendor_dlkm_is_ext4; then
+	if ${vendor_dlkm_is_ext4}; then
 		ui_print "- /vendor_dlkm seems to be in ext4 file system."
 		mount ${home}/vendor_dlkm.img $extract_vendor_dlkm_dir -o ro -t ext4 || \
 			abort "! Unsupported file system!"
@@ -437,7 +507,7 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 	cp ${home}/vertmp ${extract_vendor_dlkm_modules_dir}/vertmp
 	sync
 
-	if $vendor_dlkm_is_ext4; then
+	if ${vendor_dlkm_is_ext4}; then
 		set_perm 0 0 0644 ${extract_vendor_dlkm_modules_dir}/*
 		chcon u:object_r:vendor_file:s0 ${extract_vendor_dlkm_modules_dir}/*
 		umount $extract_vendor_dlkm_dir
@@ -460,20 +530,21 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 		fi
 	fi
 
-	$do_check_super_device_size && {
+	if ${do_check_super_device_size}; then
 		ui_print " "
 		ui_print "- The generated image file is larger than the partition size."
 		ui_print "- Checking super partition size..."
 		check_super_device_size  # If the check here fails, it will be aborted directly.
 		ui_print "- Pass!"
-	}
+	fi
 
 	unset do_check_super_device_size vendor_dlkm_block_size vendor_dlkm_is_ext4 extract_vendor_dlkm_dir extract_vendor_dlkm_modules_dir
 fi
 
 unset do_backup_flag
 
-write_boot # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
+flash_boot # skip ramdisk repack
+flash_generic vendor_dlkm
 
 ########## FLASH BOOT & VENDOR_DLKM END ##########
 
@@ -502,17 +573,11 @@ rm ${vendor_boot_modules_dir}/*
 cp ${home}/_vendor_boot_modules/* ${vendor_boot_modules_dir}/
 set_perm 0 0 0644 ${vendor_boot_modules_dir}/*
 
-if ${disable_damon_reclaim}; then
-	patch_cmdline "damon_reclaim.enabled" "damon_reclaim.enabled=N"
-else
-	patch_cmdline "damon_reclaim.enabled" ""
-fi
-
 write_boot # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 
 ########## FLASH VENDOR_BOOT END ##########
 
-unset is_hyperos_fw is_miui_rom disable_damon_reclaim
+unset is_hyperos_fw is_miui_rom is_oss_kernel_rom
 
 # Patch vbmeta
 ui_print " "
