@@ -52,8 +52,11 @@ build_kernel() {
 }
 
 build_clean() {
+    info "Cleaning files produced in previous build..."
     make $MAKE_ARGS clean > /dev/null || err "Failed to run make clean"
-    rm -rf $OUT_DIR || err "Failed to remove output directory $OUT_DIR"
+    rm -rf $OUT_DIR 2>/dev/null
+    rm Melt*.zip 2>/dev/null
+    info "Done!"
 }
 
 pack_zip() {
