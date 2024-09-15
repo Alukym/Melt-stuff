@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 # Set initial directories to "./" , not "./build_scripts"
 PACK_DIR=$(dirname "$0")
 cd "${PACK_DIR}/.."

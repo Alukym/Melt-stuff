@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 REPO="git@github.com:Alukym/Melt-stuff.git"
 BUILD_SCRIPT_DIR="build_scripts"
 
