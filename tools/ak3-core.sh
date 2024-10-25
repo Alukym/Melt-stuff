@@ -129,10 +129,11 @@ split_boot() {
   elif [ -f "$bin/rkcrc" ]; then
     dd bs=4096 skip=8 iflag=skip_bytes conv=notrunc if=$bootimg of=ramdisk.cpio.gz;
   else
-    (set -o pipefail; $bin/magiskboot unpack -h $bootimg 2>&1 | tee infotmp >&2);
+    (set -o pipefail; timeout 20s $bin/magiskboot unpack -h $bootimg 2>&1 | tee infotmp >&2);
     case $? in
-      1) splitfail=1;;
+      0) ;;
       2) touch chromeos;;
+      *) splitfail=1;;
     esac;
   fi;
 
@@ -233,7 +234,7 @@ repack_ramdisk() {
     $bin/mkbootfs $ramdisk > ramdisk-new.cpio;
   else
     cd $ramdisk;
-    find . | cpio -H newc -o > $home/ramdisk-new.cpio;
+    find . | grep -vE '^\.$' | sort | cpio -H newc -o > $home/ramdisk-new.cpio;
   fi;
   [ $? != 0 ] && packfail=1;
 
@@ -242,7 +243,7 @@ repack_ramdisk() {
     $bin/magiskboot cpio ramdisk-new.cpio test;
     magisk_patched=$?;
   fi;
-  [ $((magisk_patched & 3)) -eq 1 ] && $bin/magiskboot cpio ramdisk-new.cpio "extract .backup/.magisk $split_img/.magisk";
+  [ "$magisk_patched" -eq 1 ] && $bin/magiskboot cpio ramdisk-new.cpio "extract .backup/.magisk $split_img/.magisk";
   if [ "$comp" ]; then
     $bin/magiskboot compress=$comp ramdisk-new.cpio;
     if [ $? != 0 ] && $comp --help 2>/dev/null; then
@@ -343,7 +344,7 @@ flash_boot() {
           cp -f $bin/_extra/empty.cpio $f;
         done;
         # Then, replace the original ramdisk.cpio with the integrated and repackaged ramdisk.cpio
-        cp -f $ramdisk vendor_ramdisk/ramdisk.cpio;
+        mv -f $ramdisk vendor_ramdisk/ramdisk.cpio;
       else
         cp -f $ramdisk ramdisk.cpio;
       fi;
@@ -358,7 +359,7 @@ flash_boot() {
           $bin/magiskboot cpio ramdisk.cpio test;
           magisk_patched=$?;
         fi;
-        if [ $((magisk_patched & 3)) -eq 1 ]; then
+        if [ "$magisk_patched" -eq 1 ]; then
           ui_print " " "Magisk detected! Patching kernel so reflashing Magisk is not necessary...";
           comp=$($bin/magiskboot decompress kernel 2>&1 | grep -vE 'raw|zimage' | sed -n 's;.*\[\(.*\)\];\1;p');
           ($bin/magiskboot split $kernel || $bin/magiskboot decompress $kernel kernel) 2>/dev/null;
@@ -844,6 +845,11 @@ setup_ak() {
     1|auto)
       slot=$(getprop ro.boot.slot_suffix 2>/dev/null);
       [ "$slot" ] || slot=$(grep -o 'androidboot.slot_suffix=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);
+      if [ ! "$slot" ]; then
+        if [ -e /proc/bootconfig ]; then
+          slot=$(cat /proc/bootconfig | grep -E '^androidboot.slot_suffix = ' | awk '{print $3}' | sed 's/^"//; s/"$//');
+        fi;
+      fi;
       if [ ! "$slot" ]; then
         slot=$(getprop ro.boot.slot 2>/dev/null);
         [ "$slot" ] || slot=$(grep -o 'androidboot.slot=.*$' /proc/cmdline | cut -d\  -f1 | cut -d= -f2);

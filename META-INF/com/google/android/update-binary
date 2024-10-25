@@ -538,7 +538,7 @@ if [ $? != 0 -o -z "$(ls bin)" ]; then
   abort "Busybox setup failed. Aborting...";
 fi;
 OLD_PATH="$PATH";
-export PATH="$AKHOME/bin:$AKHOME/tools:$PATH";
+export PATH="$AKHOME/tools:$AKHOME/bin:$PATH";
 
 if [ -f banner ]; then
   ui_printfile banner;
@@ -569,6 +569,11 @@ CORE=$(grep -oE 'ak.*core.sh' anykernel.sh);
 [ -f tools/$CORE ] || ln -s $AKHOME/tools/ak*-core.sh $AKHOME/tools/$CORE;
 ash anykernel.sh;
 if [ $? != 0 ]; then
+  if [ -f ${AKHOME}/rollback_if_abort_flag -a -f ${AKHOME}/_rollback_anykernel.sh ]; then
+    ui_print " " "Rolling back boot and vendor_dlkm to previous state...";
+    ash _rollback_anykernel.sh || :;  # Ignore any errors
+    ui_print " " "Installation failed!";
+  fi;
   abort;
 fi;
 
