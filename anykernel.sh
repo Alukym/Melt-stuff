@@ -146,23 +146,42 @@ check_super_device_size() {
 		abort "! Super block device size mismatch!"
 }
 
-is_oss_kernel_rom() {
-	local m16t_touch_node m16t_touch_prop ir_spi_node ir_spi_prop
+# copy_gpu_pwrlevels_conf <orig dtb file> <new dtb file>
+copy_gpu_pwrlevels_conf() {
+	local orig_dtb=$1
+	local new_dtb=$2
+	local node reg gpu_freq bus_freq bus_min bus_max level cx_level acd_level initial_pwrlevel
 
-	[ -f /vendor/bin/sensor-notifier ] && return 0
+	# Clear the gpu frequency and voltage configuration of new_dtb
+	for node in $(${bin}/fdtget "$new_dtb" /soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels -l); do
+		${bin}/fdtput "$new_dtb" -r "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node"
+	done
 
-	# Check if it's new OSS dtbo
-	# https://github.com/cupid-development/android_kernel_xiaomi_sm8450-devicetrees/commit/f4dfb9210dc907b335441bfa78720773f679f841
-	m16t_touch_node=$(find /proc/device-tree/ | grep -E -m1 '/m16t-touch.*/compatible$') && \
-		m16t_touch_prop=$(cat "$m16t_touch_node") && \
-			test "$m16t_touch_prop" == "goodix,9916r-spi" || return 0
+	for node in $(${bin}/fdtget "$orig_dtb" /soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels -l | sort -r); do
+		# Read
+		      reg=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "reg" -tu)
+		 gpu_freq=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,gpu-freq" -tu)
+		 bus_freq=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-freq" -tu)
+		  bus_min=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-min" -tu)
+		  bus_max=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-max" -tu)
+		    level=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,level" -tu)
+		 cx_level=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,cx-level" -tu)
+		acd_level=$(${bin}/fdtget "$orig_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,acd-level" -tx)
 
-	# https://github.com/cupid-development/android_kernel_xiaomi_sm8450-devicetrees/commit/393374ee4d02edbc27f3b6b57b965a7fbe87d33b
-	ir_spi_node=$(find /proc/device-tree/ | grep -E -m1 '/ir-spi.*/compatible$') && \
-		ir_spi_prop=$(cat "$ir_spi_node") && \
-			test "$ir_spi_prop" == "ir-spi-led" && return 0
+		# Write
+		${bin}/fdtput "$new_dtb" -c "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node"
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,cx-level"  "$cx_level" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,acd-level" "$acd_level" -tx
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-max"   "$bus_max" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-min"   "$bus_min" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,bus-freq"  "$bus_freq" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,level"     "$level" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "qcom,gpu-freq"  "$gpu_freq" -tu
+		${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000/qcom,gpu-pwrlevels/$node" "reg" "$reg" -tu
+	done
 
-	return 1
+	initial_pwrlevel=$(${bin}/fdtget "$orig_dtb" /soc/qcom,kgsl-3d0@3d00000 "qcom,initial-pwrlevel" -tu)
+	${bin}/fdtput "$new_dtb" "/soc/qcom,kgsl-3d0@3d00000" "qcom,initial-pwrlevel" "$initial_pwrlevel" -tu
 }
 
 # Check firmware
@@ -175,7 +194,6 @@ else
 fi
 
 # Check rom type
-is_oss_kernel_rom && abort "Error: Melt Kernel does not seem to support your rom:/"
 is_miui_rom=false
 [ -f /system/framework/MiuiBooster.jar ] && is_miui_rom=true
 
@@ -231,10 +249,6 @@ is_mounted /vendor_dlkm || \
 	mount /vendor_dlkm -o ro || mount /dev/block/mapper/vendor_dlkm${slot} /vendor_dlkm -o ro || \
 		abort "! Failed to mount /vendor_dlkm"
 
-# Btw, determine again whether it is a ROM based on the OSS kernel
-strings /vendor_dlkm/lib/modules/cnss2.ko | grep -q 'clang version 12.0.5' || \
-	abort "Error: Melt Kernel does not seem to support your rom:/"
-
 do_backup_flag=false
 if [ ! -f /vendor_dlkm/lib/modules/vertmp ]; then
 	do_backup_flag=true
@@ -269,9 +283,7 @@ if keycode_select \
     " " \
     "Note:" \
     "Always enabling 360HZ will NOT improve the daily" \
-    "use experience and increase power consumption." \
-    "If you regret it, you can install this kernel again" \
-    "and choose No at this step."; then
+    "use experience and increase power consumption."; then
 	echo "options goodix_core force_high_report_rate=y" >> $vendor_dlkm_modules_options_file
 fi
 
@@ -307,7 +319,8 @@ if ! ${skip_option_fix_battery_usage}; then
 	    "Note:" \
 	    "Select Yes if you are using AOSP rom and find" \
 	    "abnormal battery usage data in the system." \
-	    "Select No if you are using MIUI/HyperOS/AOSPA rom."; then
+	    "Select No if you are using MIUI, HyperOS," \
+	    "or AOSPA rom."; then
 		do_fix_battery_usage=true
 	fi
 fi
@@ -324,16 +337,28 @@ unset modname_qti_battery_charger qti_battery_charger_mod_options
 
 # OSS msm_drm.ko
 if ${is_hyperos_fw}; then
-	if keycode_select \
-	    "Using open source display drivers?" \
-	    " " \
-	    "Note:" \
-	    "Select No if you don't know what this means."; then
+	use_oss_msm_drm=false
+	skip_option_oss_msm_drm=false
+	if [ -f /vendor/bin/sensor-notifier ]; then
+		use_oss_msm_drm=true
+		skip_option_oss_msm_drm=true
+	fi
+	if ! ${skip_option_oss_msm_drm}; then
+		if keycode_select \
+		    "Using open source display drivers?" \
+		    " " \
+		    "Note:" \
+		    "Select No if you don't know what this means."; then
+			use_oss_msm_drm=true
+		fi
+	fi
+	if ${use_oss_msm_drm}; then
 		oss_msm_drm=${home}/_alt/OSS-msm_drm.ko
 		[ -f $oss_msm_drm ] || abort "! Cannot found ${oss_msm_drm}!"
 		cp $oss_msm_drm ${home}/_vendor_dlkm_modules/msm_drm.ko -f
 		unset oss_msm_drm
 	fi
+	unset use_oss_msm_drm skip_option_oss_msm_drm
 fi
 
 # Alternative wired headset buttons mode
@@ -358,6 +383,28 @@ if ${use_wired_btn_altmode}; then
 fi
 unset use_wired_btn_altmode skip_option_wired_btn_altmode
 
+# Correct physical panel dimensions & Drop 30hz timing
+fix_panel_dimension=false
+skip_option_fix_panel_dimension=false
+if ${is_miui_rom} || cat /system/build.prop | grep -qi 'aospa'; then
+	skip_option_fix_panel_dimension=true
+fi
+if ! ${skip_option_fix_panel_dimension}; then
+	if keycode_select \
+	    "Is your rom originally based on OSS kernel?" \
+	    " " \
+	    "Note:" \
+	    "Select No if you are using MIUI, HyperOS," \
+	    "or AOSPA rom." \
+	    " " \
+	    "WARNING:" \
+	    "Selecting the wrong option may cause the touchscreen"
+	    "and display to not work properly!"; then
+		fix_panel_dimension=true
+	fi
+fi
+unset skip_option_fix_panel_dimension
+
 unset vendor_dlkm_modules_options_file
 
 # Do not load millet related modules in AOSP rom
@@ -381,27 +428,31 @@ if true; then  # I don't want to adjust the indentation of the code block below,
 		ui_print "- It looks like you are installing Melt Kernel for the first time."
 
 		if keycode_select "Backup the current kernel?"; then
-			ui_print "- Backing up kernel, vendor_boot, and vendor_dlkm partition..."
+			ui_print "- Backing up kernel, vendor_boot, vendor_dlkm"
+			ui_print "  and dtbo partition..."
 
 			backup_package=/sdcard/Melt-restore-kernel-$(file_getprop /system/build.prop ro.build.version.incremental)-$(date +"%Y%m%d-%H%M%S").zip
 
-			dd if=/dev/block/bootdevice/by-name/vendor_boot${slot} of=${home}/vendor_boot.img
-
 			${bin}/7za a -tzip -bd $backup_package \
 				${home}/META-INF ${bin} ${home}/LICENSE ${home}/_restore_anykernel.sh \
-				${split_img}/kernel ${home}/vendor_dlkm.img ${home}/vendor_boot.img
+				${split_img}/kernel \
+				${home}/vendor_dlkm.img \
+				/dev/block/bootdevice/by-name/vendor_boot${slot} \
+				/dev/block/bootdevice/by-name/dtbo${slot}
 			${bin}/7za rn -bd $backup_package kernel Image
 			${bin}/7za rn -bd $backup_package _restore_anykernel.sh anykernel.sh
+			${bin}/7za rn -bd $backup_package vendor_boot${slot} vendor_boot.img
+			${bin}/7za rn -bd $backup_package dtbo${slot} dtbo.img
 			sync
 
 			ui_print " "
-			ui_print "- The current kernel, vendor_boot, vendor_dlkm have been backedup to:"
+			ui_print "- The current kernel, vendor_boot, vendor_dlkm"
+			ui_print "  and dtbo have been backedup to:"
 			ui_print "  $backup_package"
 			ui_print "- If you encounter an unexpected situation,"
 			ui_print "  or want to restore the stock kernel,"
 			ui_print "  please flash it in TWRP or some supported apps."
 			ui_print " "
-			rm ${home}/vendor_boot.img
 			touch ${home}/do_backup_flag
 
 			if ! $BOOTMODE && [ ! -d /twres ]; then
@@ -537,15 +588,56 @@ no_magisk_check=true
 # reset for vendor_boot patching
 reset_ak
 
+# Try to fix vendor_ramdisk size and vendor_ramdisk table entry information that was corrupted by old versions of magiskboot.
+${bin}/vendor_boot_fix "$block"
+case $? in
+	0) ui_print " " "- Successfully repaired the vendor_boot partition!";;
+	2) ;;  # The vendor_boot partition is normal and does not need to be repaired.
+	*) abort "! Failed to repair vendor_boot partition!";;
+esac
+
 # vendor_boot install
-dump_boot # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
+dump_boot
 
 vendor_boot_modules_dir=${ramdisk}/lib/modules
 rm ${vendor_boot_modules_dir}/*
 cp ${home}/_vendor_boot_modules/* ${vendor_boot_modules_dir}/
 set_perm 0 0 0644 ${vendor_boot_modules_dir}/*
 
-write_boot # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
+${bin}/7za x ${home}/_dtb.7z -o${home}/ || abort "! Failed to unpack _dtb.7z!"
+
+if ${fix_panel_dimension}; then
+	mv ${home}/dtbo-1.img ${home}/dtbo.img
+	rm ${home}/dtbo-0.img
+else
+	mv ${home}/dtbo-0.img ${home}/dtbo.img
+	rm ${home}/dtbo-1.img
+fi
+unset fix_panel_dimension
+
+# Copy the gpu frequency and voltage configuration of old dtb to the new dtb
+mkdir ${home}/_dtbs
+cp ${split_img}/dtb ${home}/_dtbs/dtb
+dtb_img_splitted=`${bin}/dtp -i ${home}/_dtbs/dtb | awk '{print $NF}'` || abort "! Failed to split dtb file!"
+ukee_dtb=
+for dtb_file in $dtb_img_splitted; do
+	if [ "$(${bin}/fdtget $dtb_file / model -ts)" == "Qualcomm Technologies, Inc. Ukee SoC" ]; then
+		ukee_dtb="$dtb_file"
+		break
+	fi
+done
+[ -z "$ukee_dtb" ] && abort "! Can not found Ukee dtb file!"
+
+if [ "$(sha1 $ukee_dtb)" != "$(sha1 ${home}/dtb)" ]; then
+	copy_gpu_pwrlevels_conf "$ukee_dtb" ${home}/dtb
+	sync
+fi
+
+rm -rf ${home}/_dtbs
+
+unset dtb_img_splitted ukee_dtb
+
+write_boot  # Since dtbo.img exists in ${home}, the dtbo partition will also be flashed at this time
 
 ########## FLASH VENDOR_BOOT END ##########
 

@@ -246,6 +246,36 @@ lpdump: Apache License 2.0
     Source not required, however, respective source is provided:
     https://android.googlesource.com/platform/system/extras/+/refs/heads/main/partition_tools/
 
+dtp: None
+    Source:
+    https://github.com/lyq1996/msm8998_offset_voltage/tree/TWRP/dtp_src
+
+fdtget, fdtput: GPL/BSD dual-licensed
+    Licensing and contribution policy of dtc and libfdt
+
+    This dtc package contains two pieces of software: dtc itself, and
+    libfdt which comprises the files in the libfdt/ subdirectory.  These
+    two pieces of software, although closely related, are quite distinct.
+    dtc does not incorporate or rely on libfdt for its operation, nor vice
+    versa.  It is important that these two pieces of software have
+    different license conditions.
+
+    As SPDX license tags in each source file attest, dtc is licensed
+    under the GNU GPL.  The full text of the GPL can be found in the file
+    entitled 'GPL' which should be included in this package.  dtc code,
+    therefore, may not be incorporated into works which do not have a GPL
+    compatible license.
+
+    libfdt, however, is GPL/BSD dual-licensed.  That is, it may be used
+    either under the terms of the GPL, or under the terms of the 2-clause
+    BSD license (aka the ISC license).  The full terms of that license can
+    be found are in the file entitled 'BSD-2-Clause'. This is, in
+    practice, equivalent to being BSD licensed, since the terms of the BSD
+    license are strictly more permissive than the GPL.
+
+    Source not required, however, respective source is provided:
+    https://github.com/dgibson/dtc
+
 ## Optional Binary Licenses:
 
 mkbootfs, mkbootimg: Apache License 2.0
